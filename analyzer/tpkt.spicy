@@ -1,7 +1,14 @@
-# TODO: Define your analyzer here.
+module tpkt;
 
-module TPKT;
+import spicy;
 
-public type Messages = unit {
-    payload: bytes &eod;
+public type Pdus = unit {
+    pdus : Pdu[];
+};
+
+type Pdu = unit {
+    version: uint8 &requires=($$ == 3);
+    reserved: b"\x00";
+    length: uint16 &requires=($$ >= 4);
+    payload: bytes &size=self.length-self.offset();
 };

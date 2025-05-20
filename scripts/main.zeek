@@ -1,103 +1,62 @@
-@load base/protocols/conn/removal-hooks
+module tpkt;
 
-module TPKT;
-
-export {
-	## Log stream identifier.
-	redef enum Log::ID += { LOG };
-
-	## The ports to register TPKT for.
-	const ports = {
-		# TODO: Replace with actual port(s).
-		12345/tcp,
-	} &redef;
-
-	## Record type containing the column fields of the TPKT log.
-	type Info: record {
-		## Timestamp for when the activity happened.
-		ts: time &log;
-		## Unique ID for the connection.
-		uid: string &log;
-		## The connection's 4-tuple of endpoint addresses/ports.
-		id: conn_id &log;
-
-		# TODO: Adapt subsequent fields as needed.
-
-		## Request-side payload.
-		request: string &optional &log;
-		## Response-side payload.
-		reply: string &optional &log;
-	};
-
-	## A default logging policy hook for the stream.
-	global log_policy: Log::PolicyHook;
-
-	## Default hook into TPKT logging.
-	global log_tpkt: event(rec: Info);
-
-	## TPKT finalization hook.
-	global finalize_tpkt: Conn::RemovalHook;
-}
-
-redef record connection += {
-	tpkt: Info &optional;
-};
-
+const ports = { 102/tcp };
 redef likely_server_ports += { ports };
 
-# TODO: If you're going to send file data into the file analysis framework, you
-# need to provide a file handle function. This is a simple example that's
-# sufficient if the protocol only transfers a single, complete file at a time.
-#
-# function get_file_handle(c: connection, is_orig: bool): string
-#	{
-#	return cat(Analyzer::ANALYZER_TPKT, c$start_time, c$id, is_orig);
-#	}
+export {
+    redef enum Log::ID += { LOG };
 
-event zeek_init() &priority=5
-	{
-	Log::create_stream(TPKT::LOG, [$columns=Info, $ev=log_tpkt, $path="tpkt", $policy=log_policy]);
+    redef record connection += {
+        tpkt_bytes_orig:   count &default=0;
+        tpkt_bytes_resp:   count &default=0;
+        tpkt_packets_orig: count &default=0;
+        tpkt_packets_resp: count &default=0;
+    };
 
-	Analyzer::register_for_ports(Analyzer::ANALYZER_TPKT, ports);
+    type Info: record {
+        ts:           time   &log;
+        uid:          string &log;
+        orig_h:       addr   &log;
+        orig_p:       port   &log;
+        resp_h:       addr   &log;
+        resp_p:       port   &log;
+        bytes_orig:   count  &log;
+        bytes_resp:   count  &log;
+        packets_orig: count  &log;
+        packets_resp: count  &log;
+    };
 
-	# TODO: To activate the file handle function above, uncomment this.
-	# Files::register_protocol(Analyzer::ANALYZER_TPKT, [$get_file_handle=TPKT::get_file_handle ]);
-	}
+    global log_tpkt: event(rec: Info);
+}
 
-# Initialize logging state.
-hook set_session(c: connection)
-	{
-	if ( c?$tpkt )
-		return;
+event zeek_init() &priority=5 {
+    Analyzer::register_for_ports(Analyzer::ANALYZER_TPKT, ports);
+    Log::create_stream(tpkt::LOG, [$columns = Info, $ev = log_tpkt, $path="tpkt"]);
+}
 
-	c$tpkt = Info($ts=network_time(), $uid=c$uid, $id=c$id);
-	Conn::register_removal_hook(c, finalize_tpkt);
-	}
+event pdu(c: connection, is_orig: bool, version: int, payload: string) {
+    if(is_orig) {
+        c $ tpkt_bytes_orig += |payload|;
+        c $ tpkt_packets_orig += 1;
+    } else {
+        c $ tpkt_bytes_resp += |payload|;
+        c $ tpkt_packets_resp += 1;
+    }
+}
 
-function emit_log(c: connection)
-	{
-	if ( ! c?$tpkt )
-		return;
+event connection_state_remove(c: connection) {
+    local r: tpkt::Info = [
+        $ts =     network_time(),
+        $uid =    c $ uid,
+        $orig_h = c $ id $ orig_h,
+        $orig_p = c $ id $ orig_p,
+        $resp_h = c $ id $ resp_h,
+        $resp_p = c $ id $ resp_p,
+        $bytes_orig =   c $ tpkt_bytes_orig,
+        $bytes_resp =   c $ tpkt_bytes_resp,
+        $packets_orig = c $ tpkt_packets_orig,
+        $packets_resp = c $ tpkt_packets_resp,
+    ];
+    Log::write(tpkt::LOG, r);
+}
 
-	Log::write(TPKT::LOG, c$tpkt);
-	delete c$tpkt;
-	}
-
-# Example event defined in tpkt.evt.
-event TPKT::message(c: connection, is_orig: bool, payload: string)
-	{
-	hook set_session(c);
-
-	local info = c$tpkt;
-	if ( is_orig )
-		info$request = payload;
-	else
-		info$reply = payload;
-	}
-
-hook finalize_tpkt(c: connection)
-	{
-	# TODO: For UDP protocols, you may want to do this after every request
-	# and/or reply.
-	emit_log(c);
-	}

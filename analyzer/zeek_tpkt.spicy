@@ -1,20 +1,23 @@
-# Set up protocol confirmation/rejection for analyzers, as well as any further
-# Zeek-specific analysis.
+module tpkt_Zeek;
 
-module Zeek_TPKT;
-
-import TPKT;
+import tpkt;
 import zeek;
+import spicy;
 
-# TODO: Protocol analyzers should confirm once they are reasonably sure that
-# they are indeed parsing the right protocol. Pick a unit that's a little bit
-# into the parsing process here.
-#
-# on TPKT::SUITABLE_UNIT::%done {
-#     zeek::confirm_protocol();
-# }
+public function is_cotp_available(): bool &cxxname="is_cotp_available";
 
-# Any error bubbling up to the top unit will trigger a protocol rejection.
-on TPKT::Messages::%error {
-    zeek::reject_protocol("error while parsing TPKT");
+on tpkt::Pdus::%init {
+    if(is_cotp_available())
+        zeek::protocol_begin("COTP");
+}
+
+on tpkt::Pdu::%done {
+    confirm;
+    if(is_cotp_available())
+        zeek::protocol_data_in(zeek::is_orig(), self.payload, spicy::Protocol::UDP);
+}
+
+on tpkt::Pdus::%done {
+    if(is_cotp_available())
+        zeek::protocol_end();
 }

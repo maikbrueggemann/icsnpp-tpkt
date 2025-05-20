@@ -1,4 +1,3 @@
-tpkt
-=================================
-
-TODO: tell people what your package does!
+This plugin provides a protocol analyzer for TPKT (RFC 1006) for use within
+Zeek. The analyzer enables Zeek to parse TPKT PDUs over TCP and can trigger
+further protocol parsing of COTP messages, if the COTP analyzer is available.
