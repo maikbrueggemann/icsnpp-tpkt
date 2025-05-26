@@ -3,12 +3,16 @@ module tpkt;
 import spicy;
 
 public type Pdus = unit {
-    pdus : Pdu[];
+    pdus: (Pdu &synchronize)[];
 };
 
 type Pdu = unit {
-    version: uint8 &requires=($$ == 3);
+    version: b"\x03" &convert=$$.to_uint(spicy::ByteOrder::Big);
     reserved: b"\x00";
     length: uint16 &requires=($$ >= 4);
     payload: bytes &size=self.length-self.offset();
+
+    on %done {
+        confirm;
+    }
 };

@@ -11,4 +11,10 @@
 @TEST-EXEC: printf '\003\000\000\011TEST1\003\000\000\011TEST2' | spicy-dump tpkt.hlto > two-pdus
 @TEST-EXEC: btest-diff two-pdus
 
-@TEST-EXEC: printf 'XXXXXXXX' | spicy-dump tpkt.hlto 2>&1 | grep '$$ == 3'
+@TEST-EXEC: printf 'XXXXXXXX\003\000\000\010TEST' | spicy-dump tpkt.hlto 2>&1 >sync-test
+@TEST-EXEC: btest-diff sync-test
+
+@TEST-EXEC: ! (printf '\000\000\000\004' | spicy-dump tpkt.hlto 2>&1)
+
+@TEST-EXEC: ! (printf 'XXXXXXXX' | spicy-dump tpkt.hlto 2>&1)
+
