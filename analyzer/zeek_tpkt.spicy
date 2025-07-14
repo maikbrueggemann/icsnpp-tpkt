@@ -12,7 +12,6 @@ on tpkt::Pdus::%init {
 }
 
 on tpkt::Pdu::%done {
-    confirm;
     if(is_cotp_available())
         zeek::protocol_data_in(zeek::is_orig(), self.payload, spicy::Protocol::UDP);
 }
