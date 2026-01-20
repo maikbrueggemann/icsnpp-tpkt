@@ -57,6 +57,8 @@ event pdu(c: connection, is_orig: bool, version: int, payload: string) {
 }
 
 event connection_state_remove(c: connection) {
-    local info = get_info(c);
-    Log::write(tpkt::LOG, info);
+    if ( c?$tpkt_info ) {
+        Log::write(LOG, c$tpkt_info);
+        delete c$tpkt_info;
+    }
 }
