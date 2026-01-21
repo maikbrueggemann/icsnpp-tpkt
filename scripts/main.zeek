@@ -7,13 +7,13 @@ export {
     redef enum Log::ID += { LOG };
 
     type Info: record {
-        ts:           time   &log;
-        uid:          string &log;
+        ts:           time    &log;
+        uid:          string  &log;
         id:           conn_id &log;
-        bytes_orig:   count  &log;
-        bytes_resp:   count  &log;
-        packets_orig: count  &log;
-        packets_resp: count  &log;
+        bytes_orig:   count   &log &default=0;
+        bytes_resp:   count   &log &default=0;
+        packets_orig: count   &log &default=0;
+        packets_resp: count   &log &default=0;
     };
 
     redef record connection += {
@@ -29,10 +29,6 @@ function get_info(c: connection): Info {
             $ts=network_time(),
             $uid=c$uid,
             $id=c$id,
-            $bytes_orig=0,
-            $bytes_resp=0,
-            $packets_orig=0,
-            $packets_resp=0
         ];
     }
     return c$tpkt_info;
